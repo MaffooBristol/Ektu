@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+
+DIR="$( cd "$( dirname "$0" )" && pwd )"
+
+echo
+
+if [ -f "$DIR/config/config.yaml" ] ; then
+  read -e -p "Config file already exists! Would you like to overwrite the file and
+continue with setup? Warning: this will delete your previously saved
+configuration for ever and ever and ever. No swapsies! [y/n] `echo -e $'\n > '`" -r
+  if [[ $REPLY =~ ^[Yy]$ ]] ; then
+    rm -rf "$DIR/config/config.yaml"
+    echo
+  else
+    echo -e "\nAborted!"
+    exit 1
+  fi
+  REPLY=""
+fi
+
+cp $DIR/config/default.config.yaml $DIR/config/config.yaml
+
+chmod +x $DIR/ektu.init.php
+
+echo; while [[ -z "$YOUR_NAME" ]] ; do read -e -p "Please enter your name: `echo -e $'\n > '`" YOUR_NAME; done
+echo; while [[ -z "$IID" ]] ; do read -e -p "Please enter the IID of your Amazon instance: `echo -e $'\n > '`" IID; done
+echo; while [[ -z "$PEM_FILE" ]] ; do read -e -p "Please enter the path to your pem file: `echo -e $'\n > '`" -i "/home/$(whoami)/.ektu/pemfile.pem" PEM_FILE; done
+
+if [ ! -f $PEM_FILE ] ; then echo -e "\nCould not find the pem file you specified. Please download the
+.pem file and place it in the
+location '$PEM_FILE'."; fi
+
+echo; while [[ -z "$SSHFS_PATH" ]] ; do read -e -p "Please enter the path on which to mount your file system: `echo -e $'\n > '`" -i "/home/$(whoami)/aws-dev" SSHFS_PATH; done
+
+if [ ! -d $SSHFS_PATH ] ; then
+  echo; read -e -p "The path '$SSHFS_PATH' does not exist yet. Would you like
+me, o' sentient bash script, to create it for you? [Y/n] `echo -e $'\n > '`" -r
+  if [[ $REPLY =~ ^[Yy]$ ]] ; then
+    mkdir -p $SSHFS_PATH
+    echo -e "\nCreated '$SSHFS_PATH'."
+  else
+    echo -e "\nOkay, but you will have to make it yourself in that case."
+  fi
+  REPLY=""
+fi
+
+
+echo; while [[ -z "$DOMAIN" ]] ; do read -e -p "Please enter the URL of your test site: `echo -e $'\n > '`" -i "$(whoami).test.mysite.com" DOMAIN; done
+
+echo; while [[ ! $REPLY =~ ^[YyNn]$ ]] ; do read -e -p "Would you like 'ektu start' to automatically generate your hosts file? [Y/n] `echo -e $'\n > '`" -r; done
+
+if [[ $REPLY =~ ^[Yy]$ ]] ; then
+  AUTO_HOSTS="TRUE"
+else
+  AUTO_HOSTS="FALSE"
+fi;
+REPLY=""
+
+echo; while [[ ! $REPLY =~ ^[YyNn]$ ]] ; do read -e -p "Would you like 'ektu start' to automatically connect the file system? [Y/n] `echo -e $'\n > '`" -r; done
+if [[ $REPLY =~ ^[Yy]$ ]] ; then
+  AUTO_CFS="TRUE"
+else
+  AUTO_CFS="FALSE"
+fi;
+REPLY=""
+
+echo; while [[ ! $REPLY =~ ^[YyNn]$ ]] ; do read -e -p "Would you like 'ektu stop' to automatically disconnect the file system? [Y/n] `echo -e $'\n > '`" -r; done
+if [[ $REPLY =~ ^[Yy]$ ]] ; then
+  AUTO_DFS="TRUE"
+else
+  AUTO_DFS="FALSE"
+fi;
+REPLY=""
+
+DATE=$(date +"%Y-%m-%d %T")
+
+sed -i "s/YOUR_NAME/${YOUR_NAME}/g;s/IID/${IID}/g;s,PEM_FILE,${PEM_FILE},g;s,SSHFS_PATH,${SSHFS_PATH},g;s,DOMAIN,${DOMAIN},g;s/DATE/${DATE}/g;s/AUTO_HOSTS/${AUTO_HOSTS}/g;s/AUTO_CFS/${AUTO_CFS}/g;s/AUTO_DFS/${AUTO_DFS}/g" "${DIR}/config.php"
+
+echo; while [[ ! $REPLY =~ ^[YyNn]$ ]] ; do read -e -p "Would you like me to create an alias for 'ektu' to
+point to ${DIR}/ektu.init.php? [Y/n] `echo -e $'\n > '`" -r; done
+if [[ $REPLY =~ ^[Yy]$ ]] ; then
+  echo "alias ektu='php ${DIR}/ektu.init.php'" >> ~/.bashrc
+  source ~/.bashrc
+  echo -e "\nPlease run 'source ~/.bashrc' (without the quotes) after this script has
+finished to reload in the ektu alias."
+fi;
+REPLY=""
+
+echo; while [[ ! $REPLY =~ ^[YyNn]$ ]] ; do read -e -p "Would you like me to make your hosts file writable by the current user?
+This is recommended if you want to run 'ektu hosts' without sudo. [Y/n] `echo -e $'\n > '`" -r; done
+if [[ $REPLY =~ ^[Yy]$ ]] ; then
+  sudo chown $(whoami).$(whoami) /etc/hosts
+fi;
+REPLY=""
