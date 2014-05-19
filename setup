@@ -4,12 +4,13 @@ DIR="$( cd "$( dirname "$0" )" && pwd )"
 
 echo
 
-if [ -f "$DIR/config/config.yaml" ] ; then
-  read -e -p "Config file already exists! Would you like to overwrite the file and
+if [ -f "$DIR/config/config.yaml" ] || [ -f "$DIR/config/aws-settings.php" ] ; then
+  read -e -p "Config files already exist! Would you like to overwrite the file and
 continue with setup? Warning: this will delete your previously saved
 configuration for ever and ever and ever. No swapsies! [y/n] `echo -e $'\n > '`" -r
   if [[ $REPLY =~ ^[Yy]$ ]] ; then
     rm -rf "$DIR/config/config.yaml"
+    rm -rf "$DIR/config/aws-settings.php"
     echo
   else
     echo -e "\nAborted!"
@@ -19,10 +20,14 @@ configuration for ever and ever and ever. No swapsies! [y/n] `echo -e $'\n > '`"
 fi
 
 cp $DIR/config/default.config.yaml $DIR/config/config.yaml
+cp $DIR/config/default.aws-settings.php $DIR/config/aws-settings.php
 
 chmod +x $DIR/ektu.init.php
 
 echo; while [[ -z "$YOUR_NAME" ]] ; do read -e -p "Please enter your name: `echo -e $'\n > '`" YOUR_NAME; done
+echo; while [[ -z "$YOUR_KEY" ]] ; do read -e -p "Please enter your Amazon EC2 Key: `echo -e $'\n > '`" YOUR_KEY; done
+echo; while [[ -z "$YOUR_SECRET" ]] ; do read -e -p "Please enter your Amazon EC2 Secret: `echo -e $'\n > '`" YOUR_SECRET; done
+echo; while [[ -z "$YOUR_REGION" ]] ; do read -e -p "Please enter your Amazon EC2 Region: `echo -e $'\n > '`" -i "eu-west-1" YOUR_REGION; done
 echo; while [[ -z "$IID" ]] ; do read -e -p "Please enter the IID of your Amazon instance: `echo -e $'\n > '`" IID; done
 echo; while [[ -z "$PEM_FILE" ]] ; do read -e -p "Please enter the path to your pem file: `echo -e $'\n > '`" -i "/home/$(whoami)/.ektu/pemfile.pem" PEM_FILE; done
 
@@ -74,7 +79,8 @@ REPLY=""
 
 DATE=$(date +"%Y-%m-%d %T")
 
-sed -i "s/YOUR_NAME/${YOUR_NAME}/g;s/IID/${IID}/g;s,PEM_FILE,${PEM_FILE},g;s,SSHFS_PATH,${SSHFS_PATH},g;s,DOMAIN,${DOMAIN},g;s/DATE/${DATE}/g;s/AUTO_HOSTS/${AUTO_HOSTS}/g;s/AUTO_CFS/${AUTO_CFS}/g;s/AUTO_DFS/${AUTO_DFS}/g" "${DIR}/config.php"
+sed -i "s/YOUR_NAME/${YOUR_NAME}/g;s/IID/${IID}/g;s,PEM_FILE,${PEM_FILE},g;s,SSHFS_PATH,${SSHFS_PATH},g;s,DOMAIN,${DOMAIN},g;s/DATE/${DATE}/g;s/AUTO_HOSTS/${AUTO_HOSTS}/g;s/AUTO_CFS/${AUTO_CFS}/g;s/AUTO_DFS/${AUTO_DFS}/g" "${DIR}/config/config.yaml"
+sed -i "s/YOUR_KEY/${YOUR_KEY}/g;s/YOUR_SECRET/${YOUR_SECRET}/g;s/YOUR_REGION/${YOUR_REGION}/g;" "${DIR}/config/aws-settings.php"
 
 echo; while [[ ! $REPLY =~ ^[YyNn]$ ]] ; do read -e -p "Would you like me to create an alias for 'ektu' to
 point to ${DIR}/ektu.init.php? [Y/n] `echo -e $'\n > '`" -r; done

@@ -7,7 +7,7 @@ return array(
       'params' => array(
         'key'    => 'YOUR_KEY',
         'secret' => 'YOUR_SECRET',
-        'region' => 'eu-west-1',
+        'region' => 'YOUR_REGION',
       )
     )
   )
