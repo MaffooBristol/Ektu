@@ -1,0 +1,13 @@
+auto:
+  hosts: AUTO_HOSTS
+  hosts_gentle: AUTO_HOSTS_GENTLE
+  cfs: AUTO_CFS
+  dfs: AUTO_DFS
+sshfs_path: "SSHFS_PATH"
+pem_file:
+  default: "PEM_FILE"
+instances:
+  default:
+    iid: "IID"
+    domains:
+      - "DOMAIN"

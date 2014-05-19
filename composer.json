@@ -1,0 +1,26 @@
+{
+  "repositories": [
+    {
+      "type": "pear",
+      "url": "http://pear.php.net"
+    },
+    {
+      "type": "vcs",
+      "url": "https://github.com/mustangostang/spyc"
+    }
+  ],
+  "require":
+    {
+      "pear-pear/Console_Table": "1.2.0",
+      "aws/aws-sdk-php": "2.*",
+      "mustangostang/spyc": "*",
+      "packaged/figlet": "*",
+      "kevinlebrun/colors.php": "0.*",
+    "PEAR/console_color2": "0.1.2",
+    "pear/console_color2": "0.1.2"
+    },
+  "autoload":
+    {
+      "psr-0": {"Ektu": "src"}
+    }
+}

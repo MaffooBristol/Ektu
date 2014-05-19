@@ -1,4 +1,4 @@
 Ektu
 ====
 
-Fully PHP CLI interface for Amazon EC2.
+Full PHP CLI interface for Amazon EC2.

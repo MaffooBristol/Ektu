@@ -1,0 +1,114 @@
+<?php
+
+/**
+ * @file
+ * _ektu.util.log.class.inc
+ *
+ * Generic handler for logging to screen, file, error, etc.
+ */
+
+namespace Ektu\Util\Log;
+
+use Ektu\Util\Util;
+
+class Log extends Util {
+
+  static public function log($message = '', $type = 'info', $opts = array()) {
+
+    if (in_array(gettype($message), array('object', 'array'))) {
+      $message = print_r($message, TRUE);
+    }
+    if (stripos($message, "\n") !== FALSE) {
+      $message = explode("\n", $message);
+    }
+    else {
+      $message = array($message);
+    }
+
+    $newline = (!isset($opts['newline']) || $opts['newline'] ? "\n" : "");
+
+    foreach ($message as $m) {
+      switch ($type) {
+        case 'info':
+          print (" > " . $m . $newline);
+          break;
+
+        case 'error':
+          fwrite(STDERR, " ✘ " . $m . $newline);
+          break;
+
+        case 'success':
+          print (" ✔ " . $m . $newline);
+          break;
+
+        case 'plain':
+          print ("   " . $m . $newline);
+          break;
+
+        case 'unformatted':
+          print ($m);
+          break;
+
+        case 'blank':
+          if (!isset($opts['rows']) || !is_int($opts['rows'])) {
+            $opts['rows'] = 1;
+          }
+          for ($i = 1; $i <= $opts['rows']; $i++) {
+            self::logPlain('');
+          }
+          break;
+
+        case 'figlet':
+          $figlet = new \Packaged\Figlet\Figlet();
+          $figlet->loadFontFromPath(__DIR__ . '/../../../../resources/colossal.flf');
+          self::logPlain(trim(preg_replace('/(^\s*$|^$)/mi', '', $figlet->render($m)), "\n\r"));
+          break;
+
+        case 'line':
+          if (!isset($opts['chr']) || !is_int($opts['chr'])) {
+            $opts['chr'] = '-';
+          }
+          self::logBlank();
+          print str_repeat($opts['chr'], 80);
+          self::logBlank();
+          break;
+
+        default:
+          self::logInfo($m);
+          break;
+      }
+    }
+  }
+
+  static public function logInfo($message = '', $newline = TRUE) {
+    return self::log($message, 'info', array('newline' => $newline));
+  }
+
+  static public function logError($message = '', $newline = TRUE) {
+    return self::log($message, 'error', array('newline' => $newline));
+  }
+
+  static public function logSuccess($message = '', $newline = TRUE) {
+    return self::log($message, 'success', array('newline' => $newline));
+  }
+
+  static public function logPlain($message = '', $newline = TRUE) {
+    return self::log($message, 'plain', array('newline' => $newline));
+  }
+
+  static public function logUnformatted($message = '', $newline = TRUE) {
+    return self::log($message, 'unformatted', array('newline' => $newline));
+  }
+
+  static public function logFiglet($message = '', $newline = TRUE) {
+    return self::log($message, 'figlet', array('newline' => $newline));
+  }
+
+  static public function logBlank($rows = 1) {
+    return self::log('', 'blank', array('rows' => $rows));
+  }
+
+  static public function logLine($chr = '-') {
+    return self::log($chr, 'line');
+  }
+}
