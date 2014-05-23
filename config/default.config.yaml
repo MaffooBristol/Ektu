@@ -1,6 +1,6 @@
 auto:
   hosts: AUTO_HOSTS
-  hosts_gentle: AUTO_HOSTS_GENTLE
+  hosts_gentle: AUTO_GENTLE_HOSTS
   cfs: AUTO_CFS
   dfs: AUTO_DFS
 sshfs_path: "SSHFS_PATH"

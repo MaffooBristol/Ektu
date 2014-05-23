@@ -16,8 +16,7 @@
       "mustangostang/spyc": "*",
       "packaged/figlet": "*",
       "kevinlebrun/colors.php": "0.*",
-    "PEAR/console_color2": "0.1.2",
-    "pear/console_color2": "0.1.2"
+      "pear/console_color2": "0.1.2"
     },
   "autoload":
     {

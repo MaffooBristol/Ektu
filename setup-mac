@@ -27,15 +27,15 @@ chmod +x $DIR/ektu.init.php
 echo; while [[ -z "$YOUR_NAME" ]] ; do read -e -p "Please enter your name: `echo -e $'\n > '`" YOUR_NAME; done
 echo; while [[ -z "$YOUR_KEY" ]] ; do read -e -p "Please enter your Amazon EC2 Key: `echo -e $'\n > '`" YOUR_KEY; done
 echo; while [[ -z "$YOUR_SECRET" ]] ; do read -e -p "Please enter your Amazon EC2 Secret: `echo -e $'\n > '`" YOUR_SECRET; done
-echo; while [[ -z "$YOUR_REGION" ]] ; do read -e -p "Please enter your Amazon EC2 Region: `echo -e $'\n > '`" -i "eu-west-1" YOUR_REGION; done
+echo; while [[ -z "$YOUR_REGION" ]] ; do read -e -p "Please enter your Amazon EC2 Region: `echo -e $'\n > '`" YOUR_REGION; done
 echo; while [[ -z "$IID" ]] ; do read -e -p "Please enter the IID of your Amazon instance: `echo -e $'\n > '`" IID; done
-echo; while [[ -z "$PEM_FILE" ]] ; do read -e -p "Please enter the path to your pem file: `echo -e $'\n > '`" -i "/home/$(whoami)/.ektu/pemfile.pem" PEM_FILE; done
+echo; while [[ -z "$PEM_FILE" ]] ; do read -e -p "Please enter the path to your pem file: `echo -e $'\n > '`" PEM_FILE; done
 
 if [ ! -f $PEM_FILE ] ; then echo -e "\nCould not find the pem file you specified. Please download the
 .pem file and place it in the
 location '$PEM_FILE'."; fi
 
-echo; while [[ -z "$SSHFS_PATH" ]] ; do read -e -p "Please enter the path on which to mount your file system: `echo -e $'\n > '`" -i "/home/$(whoami)/aws-dev" SSHFS_PATH; done
+echo; while [[ -z "$SSHFS_PATH" ]] ; do read -e -p "Please enter the path on which to mount your file system: `echo -e $'\n > '`" SSHFS_PATH; done
 
 if [ ! -d $SSHFS_PATH ] ; then
   echo; read -e -p "The path '$SSHFS_PATH' does not exist yet. Would you like
@@ -50,7 +50,7 @@ me, o' sentient bash script, to create it for you? [Y/n] `echo -e $'\n > '`" -r
 fi
 
 
-echo; while [[ -z "$DOMAIN" ]] ; do read -e -p "Please enter the URL of your test site: `echo -e $'\n > '`" -i "$(whoami).test.mysite.com" DOMAIN; done
+echo; while [[ -z "$DOMAIN" ]] ; do read -e -p "Please enter the URL of your test site: `echo -e $'\n > '`" DOMAIN; done
 
 echo; while [[ ! $REPLY =~ ^[YyNn]$ ]] ; do read -e -p "Would you like 'ektu start' to automatically generate your hosts file? [Y/n] `echo -e $'\n > '`" -r; done
 
@@ -79,8 +79,8 @@ REPLY=""
 
 DATE=$(date +"%Y-%m-%d %T")
 
-sed -i "s/YOUR_NAME/${YOUR_NAME}/g;s/IID/${IID}/g;s,PEM_FILE,${PEM_FILE},g;s,SSHFS_PATH,${SSHFS_PATH},g;s,DOMAIN,${DOMAIN},g;s/DATE/${DATE}/g;s/AUTO_HOSTS/${AUTO_HOSTS}/g;s/AUTO_CFS/${AUTO_CFS}/g;s/AUTO_DFS/${AUTO_DFS}/g" "${DIR}/config/config.yaml"
-sed -i "s,YOUR_KEY,${YOUR_KEY},g;s,YOUR_SECRET,${YOUR_SECRET},g;s,YOUR_REGION,${YOUR_REGION},g;" "${DIR}/config/aws-settings.php"
+sed -i '' "s/YOUR_NAME/${YOUR_NAME}/g;s/IID/${IID}/g;s,PEM_FILE,${PEM_FILE},g;s,SSHFS_PATH,${SSHFS_PATH},g;s,DOMAIN,${DOMAIN},g;s/DATE/${DATE}/g;s/AUTO_HOSTS/${AUTO_HOSTS}/g;s/AUTO_CFS/${AUTO_CFS}/g;s/AUTO_DFS/${AUTO_DFS}/g" "${DIR}/config/config.yaml"
+sed -i '' "s,YOUR_KEY,${YOUR_KEY},g;s,YOUR_SECRET,${YOUR_SECRET},g;s,YOUR_REGION,${YOUR_REGION},g;" "${DIR}/config/aws-settings.php"
 
 echo; while [[ ! $REPLY =~ ^[YyNn]$ ]] ; do read -e -p "Would you like me to create an alias for 'ektu' to
 point to ${DIR}/ektu.init.php? [Y/n] `echo -e $'\n > '`" -r; done

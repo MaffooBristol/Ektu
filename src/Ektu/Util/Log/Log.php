@@ -80,6 +80,22 @@ class Log extends Util {
     }
   }
 
+  static public function readline($message = NULL, $prefill = '', $boolean = FALSE) {
+    if (!empty($prefill)) {
+      $prefill = " (eg, $prefill)";
+    }
+    if ($boolean) {
+      $prefill = ' [Y/n]';
+    }
+    do {
+      $output = readline("$message$prefill:\n > ");
+    } while (!isset($output) || empty($output) || ($boolean && preg_match('/[^YyNn]/i', $output)));
+    if ($boolean) {
+      $output = preg_replace(array('/([Yy])/i', '/([Nn])/i'), array('TRUE', 'FALSE'), $output);
+    }
+    return $output;
+  }
+
   static public function logInfo($message = '', $newline = TRUE) {
     return self::log($message, 'info', array('newline' => $newline));
   }

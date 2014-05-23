@@ -91,6 +91,10 @@ class Ektu {
    */
   protected $colour;
 
+  public $dir;
+
+  protected $util;
+
   /**
    * Construct magic method-- called on instantiation.
    *
@@ -101,7 +105,26 @@ class Ektu {
    *
    * @private
    */
-  public function __construct($argc = 0, $argv = NULL) {
+  public function __construct($argc = 0, $argv = NULL, $dir = NULL) {
+
+    // Define instantiated variables.
+    $this->argc = $argc;
+    $this->argv = $argv;
+    $this->dir  = $dir;
+    $this->util = new Util($this);
+
+    $this->connectTo = isset($this->argv[2]) ? $argv[2] : 'default';
+
+    // Create a temporary file.
+    file_put_contents("$this->dir/.tmp", "Nothing to see here...");
+
+    Log::logBlank();
+
+    // Bypass usual operations if running setup- for now, at least.
+    if ($argv[1] == 'setup') {
+      $this->route($this->argv[1])->call();
+      return;
+    }
 
     /* set_exception_handler(array("self", "exceptionHandler")); */
 
@@ -110,18 +133,12 @@ class Ektu {
     // Generate our EC2 object from the AWS object.
     $this->ec2 = $this->aws->get('ec2');
 
-    // Define instantiated variables.
+    // Load our personal settings.
     $this->config = Spyc::YAMLLoad(__DIR__ . "/../../config/config.yaml");
-    $this->argc = $argc;
-    $this->argv = $argv;
 
     if (!isset($this->argv[1])) {
       $this->argv[1] = NULL;
     }
-
-    $this->connectTo = isset($this->argv[2]) ? $argv[2] : 'default';
-
-    Log::logBlank();
 
     // Start routing.
     $this->route($this->argv[1])->call();
@@ -133,6 +150,7 @@ class Ektu {
    * @private
    */
   public function __destruct() {
+    unlink("$this->dir/.tmp");
     Log::logBlank();
   }
 
@@ -201,6 +219,16 @@ class Ektu {
         'description'   => "Show a list of available instances.",
         'instanceParam' => FALSE,
       ),
+      'doctor' => array(
+        'call'          => "doctor",
+        'description'   => "Runs diagnostics on your setup.",
+        'instanceParam' => FALSE,
+      ),
+      'setup' => array(
+        'call'          => "setup",
+        'description'   => "Set config parameters.",
+        'instanceParam' => FALSE,
+      ),
       'usage' => array(
         'call'          => "showUsage",
         'description'   => "Show usage of the Ektu script.",
@@ -240,7 +268,7 @@ class Ektu {
     $method = array($this, $this->toCall);
 
     if (!is_callable($method)) {
-      $this->commitSuicide("Can't call method " . $this->toCall);
+      $this->commitSuicide("Can't call method " . $this->toCall . '.');
     }
 
     call_user_func($method);
@@ -291,15 +319,20 @@ class Ektu {
     return $output;
   }
 
+  /**
+   * Gets the public IP of an instance.
+   */
   protected function getPublicIP($iid = NULL) {
 
     $iid = $this->getIID($iid);
     $response = $this->getInstance($iid);
 
     return $response['PublicIpAddress'];
-
   }
 
+  /**
+   * Prints the public IP of an instance.
+   */
   public function printPublicIP($iid = NULL) {
     $ip = $this->getPublicIP($iid);
     if (!$ip) {
@@ -308,6 +341,9 @@ class Ektu {
     Log::log("IP for $this->connectTo: $ip");
   }
 
+  /**
+   * Starts an instance.
+   */
   protected function startInstance($iid = NULL) {
 
     $iid = $this->getIID($iid);
@@ -345,6 +381,9 @@ class Ektu {
     $this->connectFileSystem();
   }
 
+  /**
+   * Stops an instance.
+   */
   protected function stopInstance($iid = NULL) {
 
     $iid = $this->getIID($iid);
@@ -402,15 +441,15 @@ class Ektu {
     $remoteUser   = 'ubuntu';
     $remoteFolder = '/var/www/html/';
 
-    $this->printFileSystemStatus();
-
     if (exec("whoami") === "root") {
       Log::logError('Cannot run CFS as root/superuser.');
     }
     else {
+      Log::log('Connecting...');
       exec("sshfs -o IdentityFile=$pemFile,Ciphers=arcfour,workaround=rename,StrictHostKeyChecking=no $remoteUser@$ip:$remoteFolder $sshfsPath 2>&1 &", $return_var);
-      if (isset($return_var[0]) && stripos($return_var[0], 'not empty') > -1) {
+      if ($this->getFileSystemStatus()) {
         Log::logError("Mount point is not empty, this means you've probably already connected with SSHFS.");
+        return $this;
       }
       Log::LogSuccess("Filesystem connected to '$sshfsPath'.");
     }
@@ -503,6 +542,9 @@ class Ektu {
     $this->commitSuicide('Could not get SSHFS path.');
   }
 
+  /**
+   * Displays the actions available for the script.
+   */
   public function showUsage() {
 
     Log::logLine();
@@ -524,6 +566,9 @@ class Ektu {
     Log::logPlain($tbl->getTable());
   }
 
+  /**
+   * Displays data about all instances associated with the account.
+   */
   public function showInstances() {
 
     $instances = $this->getAllInstances();
@@ -534,11 +579,11 @@ class Ektu {
       CONSOLE_TABLE_BORDER_ASCII,
       1,
       'utf-8',
-      TRUE
+      FALSE
     );
     $tbl->setHeaders(array('IID', 'Instance Name', 'Name in Config File', 'Status', 'MySQL', 'Apache'));
     // $tbl->setBorder('');
-    $c = new Colour();
+    // $c = new Colour();
     foreach ($instances as $key => $instance) {
 
       $name = $instance['Tags'][0]['Value'];
@@ -552,16 +597,16 @@ class Ektu {
       $psaux = array();
 
       if (!$this->checkKeyMatches($instance)) {
-        $psaux['mysqld'] = $c('Denied')->red();
-        $psaux['apache'] = $c('Denied')->red();
+        $psaux['mysqld'] = 'Denied';
+        $psaux['apache'] = 'Denied';
       }
       elseif ($instance['State']['Name'] !== 'running') {
         $psaux['mysqld'] = 'N/A';
         $psaux['apache'] = 'N/A';
       }
       else {
-        $psaux['mysqld'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{$this->getPublicIP($iid)} 'pgrep mysqld' 2>/dev/null") > 0) ? 'Running' : $c('Inactive')->red();
-        $psaux['apache'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{$this->getPublicIP($iid)} 'pgrep apache' 2>/dev/null") > 0) ? 'Running' : $c('Inactive')->red();
+        $psaux['mysqld'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{$this->getPublicIP($iid)} 'pgrep mysqld' 2>/dev/null") > 0) ? 'Running' : 'Inactive';
+        $psaux['apache'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{$this->getPublicIP($iid)} 'pgrep apache' 2>/dev/null") > 0) ? 'Running' : 'Inactive';
       }
 
       $stateColour = 'green';
@@ -574,9 +619,9 @@ class Ektu {
 
       $tbl->addRow(array(
         $iid,
-        ($inConfig === 'default') ? $c($name)->yellow()->bold() : $name,
+        ($inConfig === 'default') ? $name : $name,
         $inConfig,
-        $c(ucwords($instance['State']['Name']))->fg($stateColour),
+        ucwords($instance['State']['Name']),
         $psaux['mysqld'],
         $psaux['apache']
       ));
@@ -588,6 +633,19 @@ class Ektu {
     // Log::logPlain(trim(implode("\n", $tExplode)));
 
     Log::logPlain(trim($tbl->getTable()));
+  }
+
+  protected function doctor() {
+    $os = php_uname('s');
+    Log::log($os);
+
+    foreach ($this->util->checkConfig() as $name => $config) {
+      Log::log($name . ': ' . ($config ? 'Exists' : 'Doesn\'t exist'), ($config ? 'success' : 'error'));
+    }
+  }
+
+  protected function setup() {
+    return $this->util->setup();
   }
 
   protected function getConfigIIDs() {
