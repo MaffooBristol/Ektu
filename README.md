@@ -19,7 +19,7 @@ php ektu.init.php
 
 Usage
 ---
-After installation, it should create an alias to the script so that you can run 'ektu [command] [optional instance]' globally, otherwise run 'php /path/to/ektu.init.php [command] [optional instance]'. It should give you available options.
+After installation, it should create an alias to the script so that you can run `ektu [command] [optional instance]` globally, otherwise run `php /path/to/ektu.init.php [command] [optional instance]`. The available options will be displayed when running the script with no parameters or the single paramater `usage`.
 
 ```
    Copyright 2014 Matt Fletcher
