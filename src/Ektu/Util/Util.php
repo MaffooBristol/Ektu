@@ -22,6 +22,12 @@ class Util {
     $this->dir = $ektu->dir;
   }
 
+  /**
+   * Checks that the config files exist and are configured correctly.
+   *
+   * @return array
+   *   An array of boolean values, keyed by a canonical name.
+   */
   public function checkConfig() {
     $config = array();
     $config['Personal settings'] = file_exists($this->dir . '/config/config.yaml');
@@ -29,6 +35,24 @@ class Util {
     return $config;
   }
 
+  /**
+   * Sanitises a string.
+   *
+   * @param string $string
+   *   The input string.
+   *
+   * @return string
+   *   The output string.
+   */
+  public static function sanitise($string = '') {
+    return trim(strtolower($string));
+  }
+
+  /**
+   * Setup wizard.
+   *
+   * @todo: Move this to a separate class as it grows.
+   */
   public function setup() {
     $tokens = array();
 
@@ -140,6 +164,8 @@ class Util {
       }
       file_put_contents("$this->dir/config/$f", $fileContents);
     }
+
+    return $this;
 
   }
 }

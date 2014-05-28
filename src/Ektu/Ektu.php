@@ -121,7 +121,7 @@ class Ektu {
     Log::logBlank();
 
     // Bypass usual operations if running setup- for now, at least.
-    if ($argv[1] == 'setup') {
+    if ($argv[1] == 'setup' || $argv[1] == 'doctor') {
       $this->route($this->argv[1])->call();
       return;
     }
@@ -244,6 +244,8 @@ class Ektu {
       $this->toCall = 'showUsage';
       return $this;
     }
+
+    $route = Util::sanitise($route);
 
     if (!isset($items[$route])) {
       $this->commitSuicide("Unknown command '$route'. Please see 'ektu usage'.");
@@ -640,7 +642,7 @@ class Ektu {
     Log::log($os);
 
     foreach ($this->util->checkConfig() as $name => $config) {
-      Log::log($name . ': ' . ($config ? 'Exists' : 'Doesn\'t exist'), ($config ? 'success' : 'error'));
+      Log::log($name, ($config ? 'success' : 'error'));
     }
   }
 
