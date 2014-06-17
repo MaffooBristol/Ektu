@@ -93,8 +93,21 @@ class Util {
     $tokens['sshfsPath'] = array(
       'SSHFS Path',
       'SSHFS_PATH',
-      Log::readline("Please enter the path on which to mount your file system", "${_SERVER['HOME']}/aws-dev"),
+      Log::readline("Please enter the LOCAL path on which to mount your file system", "${_SERVER['HOME']}/aws-dev"),
     );
+
+    $tokens['remotePath'] = array(
+      'Remote Path',
+      'REMOTE_PATH',
+      Log::readline("Please enter the REMOTE path on which to connect", "/var/www/html"),
+    );
+
+    $tokens['remoteUser'] = array(
+      'Remote User',
+      'REMOTE_USER',
+      Log::readline("Please enter the REMOTE username on your host machine", "ubuntu"),
+    );
+
     $tokens['testSite'] = array(
       'Test Site',
       'DOMAIN',

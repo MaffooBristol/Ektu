@@ -429,26 +429,21 @@ class Ektu {
    *   Path to the pemfile, if provided.
    * @param string $sshfsPath
    *   Path to connect to SSHFS-- once again, if provided.
-   *
-   * @return object
-   *   Itself.
    */
   protected function connectFileSystem($iid = NULL, $pemFile = NULL, $sshfsPath = NULL) {
 
     $ip         = $this->getPublicIP($iid);
     $pemFile    = $this->getPemFile($pemFile);
     $sshfsPath  = $this->getSSHFSPath($sshfsPath);
-
-    // @todo: Make these customisable.
-    $remoteUser   = 'ubuntu';
-    $remoteFolder = '/var/www/html/';
+    $remoteUser = $this->getRemoteUser();
+    $remoteDir  = $this->getRemoteDirectory();
 
     if (exec("whoami") === "root") {
       Log::logError('Cannot run CFS as root/superuser.');
     }
     else {
       Log::log('Connecting...');
-      exec("sshfs -o IdentityFile=$pemFile,Ciphers=arcfour,workaround=rename,StrictHostKeyChecking=no $remoteUser@$ip:$remoteFolder $sshfsPath 2>&1 &", $return_var);
+      exec("sshfs -o IdentityFile=$pemFile,Ciphers=arcfour,workaround=rename,StrictHostKeyChecking=no $remoteUser@$ip:$remoteDir $sshfsPath 2>&1 &", $return_var);
       if ($this->getFileSystemStatus()) {
         Log::logError("Mount point is not empty, this means you've probably already connected with SSHFS.");
         return $this;
@@ -542,6 +537,32 @@ class Ektu {
     }
     // Finally, die if you can't get a path.
     $this->commitSuicide('Could not get SSHFS path.');
+  }
+
+  /**
+   * Retrieve the remote user from the config file.
+   *
+   * @return string
+   *   The username on the remote machine, defaults to ubuntu.
+   */
+  protected function getRemoteUser() {
+    if (isset($this->config['remote_user'])) {
+      return $this->config['remote_user'];
+    }
+    return 'ubuntu';
+  }
+
+  /**
+   * Retrieve the remote directory to connect to from the config file.
+   *
+   * @return string
+   *   The remote path to connect to. Defaults to /var/www/html.
+   */
+  protected function getRemoteDirectory() {
+    if (isset($this->config['remote_dir'])) {
+      return $this->config['remote_dir'];
+    }
+    return '/var/www/html';
   }
 
   /**
