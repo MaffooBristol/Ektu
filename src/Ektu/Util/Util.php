@@ -117,7 +117,7 @@ class Util {
     $tokens['autoHosts'] = array(
       'Auto Hosts',
       'AUTO_HOSTS',
-      Log::readline("Would you like 'ektu start' to automatically generate your hosts file?", "", TRUE),
+      Log::readline("Would you like 'ek start' to automatically generate your hosts file?", "", TRUE),
     );
     $tokens['autoHostsGentle'] = array(
       'Auto Hosts Gentle',
@@ -132,12 +132,12 @@ class Util {
     $tokens['autoCFS'] = array(
       'Auto CFS',
       'AUTO_CFS',
-      Log::readline("Would you like 'ektu start' to automatically connect the file system?", "", TRUE),
+      Log::readline("Would you like 'ek start' to automatically connect the file system?", "", TRUE),
     );
     $tokens['autoDFS'] = array(
       'Auto DFS',
       'AUTO_DFS',
-      Log::readline("Would you like 'ektu stop' to automatically disconnect the file system?", "", TRUE),
+      Log::readline("Would you like 'ek stop' to automatically disconnect the file system?", "", TRUE),
     );
 
     $tokens['date'] = array('Date', 'DATE', date(time()));
@@ -181,4 +181,5 @@ class Util {
     return $this;
 
   }
+
 }
