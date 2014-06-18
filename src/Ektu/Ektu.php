@@ -443,7 +443,7 @@ class Ektu {
     }
     else {
       Log::log('Connecting...');
-      exec("sshfs -o IdentityFile=$pemFile,Ciphers=arcfour,workaround=rename,StrictHostKeyChecking=no $remoteUser@$ip:$remoteDir $sshfsPath 2>&1 &", $return_var);
+      exec("sshfs -o IdentityFile=$pemFile,Ciphers=arcfour,workaround=rename,StrictHostKeyChecking=no,reconnect,auto_cache $remoteUser@$ip:$remoteDir $sshfsPath 2>&1 &", $return_var);
       if ($this->getFileSystemStatus()) {
         Log::logError("Mount point is not empty, this means you've probably already connected with SSHFS.");
         return $this;
@@ -664,6 +664,13 @@ class Ektu {
 
     foreach ($this->util->checkConfig() as $name => $config) {
       Log::log($name, ($config ? 'success' : 'error'));
+    }
+    $sshfs = exec("sshfs -V 2>&1");
+    if (!$sshfs) {
+      Log::logError('You do not have SSHFS installed.');
+    }
+    else {
+      Log::logSuccess("You have SSHFS correctly installed ($sshfs)");
     }
   }
 
