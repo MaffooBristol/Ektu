@@ -43,6 +43,11 @@ class Ektu {
   const WAITER_ATTEMPTS = 60;
 
   /**
+   * Number of seconds to wait before CFS on 'Ek start'.
+   */
+  const SLEEP_BEFORE_CFS = 10;
+
+  /**
    * AWS Object- we will use this to generate our other AWS services.
    *
    * @var Object: Aws\Common\Aws
@@ -345,6 +350,9 @@ class Ektu {
 
   /**
    * Starts an instance.
+   *
+   * @todo : Check the config for whether to CFS, DFS and such.
+   * @todo : Find a hardier method to ensure SSH connectivity.
    */
   protected function startInstance($iid = NULL) {
 
@@ -378,8 +386,12 @@ class Ektu {
     Log::logBlank();
     Log::logSuccess("Your IP: " . $this->getPublicIP());
 
-    Log::log('Connecting file system...');
+    // Wait for an arbitrary period of time before connecting the file
+    // system. This ensures that SSH is ready for inbound connections on
+    // the host machine. @todo: Fix the way this works.
+    sleep(self::SLEEP_BEFORE_CFS);
 
+    // Connect the file system.
     $this->connectFileSystem();
   }
 
@@ -442,7 +454,7 @@ class Ektu {
       Log::logError('Cannot run CFS as root/superuser.');
     }
     else {
-      Log::log('Connecting...');
+      Log::log('Connecting file system...');
       exec("sshfs -o IdentityFile=$pemFile,Ciphers=arcfour,workaround=rename,StrictHostKeyChecking=no,reconnect,auto_cache $remoteUser@$ip:$remoteDir $sshfsPath 2>&1 &", $return_var);
       if ($this->getFileSystemStatus()) {
         Log::logError("Mount point is not empty, this means you've probably already connected with SSHFS.");

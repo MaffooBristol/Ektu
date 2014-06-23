@@ -1,6 +1,7 @@
 composer.phar
 vendor/
-1 # This sometimes gets created, no idea what by! :/
+# This sometimes gets created, no idea what by! :/
+1
 .tmp
 
 # Commit your application's lock file http://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file
