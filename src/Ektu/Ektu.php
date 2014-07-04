@@ -5,6 +5,11 @@
  * _ektu.class.inc
  *
  * Main class for ektu functionality.
+ *
+ * @todo Better structure the methods, class hierarchies, etc.
+ * @todo Platform independent hosts editing.
+ * @todo Implement all other methods.
+ * @todo Much, much more!
  */
 
 /**
@@ -155,7 +160,10 @@ class Ektu {
    * @private
    */
   public function __destruct() {
-    unlink("$this->dir/.tmp");
+    $tmpFilepath = "$this->dir/.tmp";
+    if (is_file($tmpFilepath) && file_exists($tmpFilepath)) {
+      unlink($tmpFilepath);
+    }
     Log::logBlank();
   }
 
@@ -190,7 +198,7 @@ class Ektu {
         'instanceParam' => TRUE,
       ),
       'dfs' => array(
-        'call'          => "printPublicIP",
+        'call'          => "disconnectFileSystem",
         'description'   => "Disconnect the file system. Warning: Close any IDEs first.",
         'instanceParam' => TRUE,
       ),
@@ -215,7 +223,7 @@ class Ektu {
         'instanceParam' => TRUE,
       ),
       'hosts' => array(
-        'call'          => "printPublicIP",
+        'call'          => "editHosts",
         'description'   => "Modify your hosts file to reflect the new IP.",
         'instanceParam' => TRUE,
       ),
@@ -351,8 +359,8 @@ class Ektu {
   /**
    * Starts an instance.
    *
-   * @todo : Check the config for whether to CFS, DFS and such.
-   * @todo : Find a hardier method to ensure SSH connectivity.
+   * @todo Check the config for whether to CFS, DFS and such.
+   * @todo Find a hardier method to ensure SSH connectivity.
    */
   protected function startInstance($iid = NULL) {
 
@@ -393,6 +401,9 @@ class Ektu {
 
     // Connect the file system.
     $this->connectFileSystem();
+
+    // Edit hosts... dodgy at the moment.
+    $this->editHosts();
   }
 
   /**
@@ -401,6 +412,8 @@ class Ektu {
   protected function stopInstance($iid = NULL) {
 
     $iid = $this->getIID($iid);
+
+    $this->disconnectFileSystem();
 
     $response = $this->ec2->stopInstances(
       array(
@@ -441,6 +454,8 @@ class Ektu {
    *   Path to the pemfile, if provided.
    * @param string $sshfsPath
    *   Path to connect to SSHFS-- once again, if provided.
+   *
+   * @todo Create a waiter.
    */
   protected function connectFileSystem($iid = NULL, $pemFile = NULL, $sshfsPath = NULL) {
 
@@ -450,18 +465,75 @@ class Ektu {
     $remoteUser = $this->getRemoteUser();
     $remoteDir  = $this->getRemoteDirectory();
 
+    $sshfsOptions = array(
+      "IdentityFile=$pemFile",
+      "Ciphers=arcfour",
+      "workaround=rename",
+      "StrictHostKeyChecking=no",
+      "reconnect",
+      "auto_cache",
+    );
+    $sshfsOptions = implode(',', $sshfsOptions);
+
     if (exec("whoami") === "root") {
       Log::logError('Cannot run CFS as root/superuser.');
     }
     else {
-      Log::log('Connecting file system...');
-      exec("sshfs -o IdentityFile=$pemFile,Ciphers=arcfour,workaround=rename,StrictHostKeyChecking=no,reconnect,auto_cache $remoteUser@$ip:$remoteDir $sshfsPath 2>&1 &", $return_var);
+      Log::logInfo('Connecting file system...', FALSE);
       if ($this->getFileSystemStatus()) {
+        Log::logBlank();
         Log::logError("Mount point is not empty, this means you've probably already connected with SSHFS.");
         return $this;
       }
-      Log::LogSuccess("Filesystem connected to '$sshfsPath'.");
+      exec("sshfs -o $sshfsOptions $remoteUser@$ip:$remoteDir $sshfsPath 2>&1 &", $return_var);
+      // do {
+      //   Log::logUnformatted('.', FALSE);
+      // } while (!$this->getFileSystemStatus());
+      Log::logBlank();
+      Log::logSuccess("Filesystem '$remoteDir' connected to '$sshfsPath'.");
     }
+    return $this;
+  }
+
+  /**
+   * Disconnects from the file system.
+   *
+   * @param string $sshfsPath
+   *   The SSHFS path to connect to, if provided.
+   *
+   * @todo Investigate reasons why standard fusermount fails sometimes.
+   * @todo Think about cross-OS methods.
+   * @todo Create an actual waiter.
+   */
+  protected function disconnectFileSystem($sshfsPath = NULL) {
+
+    $sshfsPath = $this->getSSHFSPath($sshfsPath);
+
+    Log::logInfo('Disconnecting file system...', FALSE);
+
+    if (!$this->getFileSystemStatus()) {
+      Log::logBlank();
+      Log::logError('Filesystem is already disconnected.');
+      return $this;
+    }
+
+    $attempts = 0;
+
+    do {
+      $unmount = exec("fusermount -uz $sshfsPath 2>&1 &");
+      Log::logUnformatted('.', FALSE);
+      $attempts++;
+    } while ($this->getFileSystemStatus());
+
+    Log::logBlank();
+
+    if ($attempts >= 100) {
+      Log::logError('Couldn\'t disconnect file system!');
+      return $this;
+    }
+
+    Log::logSuccess('Filesystem disconnected.');
+
     return $this;
   }
 
@@ -487,6 +559,32 @@ class Ektu {
     Log::log("Connecting to $ip...");
 
     passthru("ssh -t -t -i $pemFile -o StrictHostKeyChecking=no ubuntu@$ip");
+  }
+
+  protected function editHosts() {
+    $filename = '/etc/hosts';
+
+    if (isset($this->config['auto']['hosts_gentle']) && $this->config['auto']['hosts_gentle']) {
+      if (PHP_OS != 'Linux') {
+        Log::logError("Error! You need to be on Linux to use gentle mode. Flawed, I know.");
+      }
+
+      exec('
+        LINE=$(($(grep -in "default" /etc/hosts | cut -f1 -d:) + 1));
+        if [ $LINE > 1 ] ; then
+          OLD_IP=$(sed -n "${LINE}p" /etc/hosts | cut -d " " -f1);
+          sed "s/$OLD_IP/$(simec ip-clean)/g" /etc/hosts > /tmp/hosts;
+          cp /tmp/hosts /etc;
+        fi
+      ', $response);
+
+      if (!isset($response[0])) {
+        Log::logSuccess("Hosts file updated successfully.");
+        return TRUE;
+      }
+      Log::logError("Error! Failed trying to gently fix hosts.");
+      return FALSE;
+    }
   }
 
   protected function getIID($iid = NULL) {

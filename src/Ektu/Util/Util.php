@@ -49,6 +49,20 @@ class Util {
   }
 
   /**
+   * Kill processes on windows. UNTESTED.
+   *
+   * @param int $pid
+   *   The process ID to kill.
+   */
+  protected function win_kill($pid) {
+    $wmi = new COM("winmgmts:{impersonationLevel=impersonate}!\\\\.\\root\\cimv2");
+    $procs = $wmi->ExecQuery("SELECT * FROM Win32_Process WHERE ProcessId = '" . $pid . "'");
+    foreach ($procs as $proc) {
+      $proc->Terminate();
+    }
+  }
+
+  /**
    * Setup wizard.
    *
    * @todo: Move this to a separate class as it grows.
