@@ -530,7 +530,7 @@ class Ektu {
     $attempts = 0;
 
     do {
-      $unmount = exec("fusermount $sshfsPath 2>&1 &");
+      $unmount = exec("$unmount_exec $sshfsPath 2>&1 &");
       Log::logUnformatted('.', FALSE);
       $attempts++;
       sleep(1);
