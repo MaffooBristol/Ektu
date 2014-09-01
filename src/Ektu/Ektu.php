@@ -509,6 +509,16 @@ class Ektu {
 
     $sshfsPath = $this->getSSHFSPath($sshfsPath);
 
+    if (exec("whereis fusermount")) {
+      $unmount_exec = 'fusermount -uz';
+    }
+    elseif (exec("whereis umount")) {
+      $unmount_exec = 'umount -f';
+    }
+    else {
+      return Log::logError('Cannot unmount as neither fusermount nor umount are installed on your system.');
+    }
+
     Log::logInfo('Disconnecting file system...', FALSE);
 
     if (!$this->getFileSystemStatus()) {
@@ -520,14 +530,15 @@ class Ektu {
     $attempts = 0;
 
     do {
-      $unmount = exec("fusermount -uz $sshfsPath 2>&1 &");
+      $unmount = exec("fusermount $sshfsPath 2>&1 &");
       Log::logUnformatted('.', FALSE);
       $attempts++;
+      sleep(1);
     } while ($this->getFileSystemStatus());
 
     Log::logBlank();
 
-    if ($attempts >= 100) {
+    if ($attempts >= 10) {
       Log::logError('Couldn\'t disconnect file system!');
       return $this;
     }
