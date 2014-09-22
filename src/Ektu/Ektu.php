@@ -78,7 +78,7 @@ class Ektu {
    *
    * @var array
    */
-  protected $argv;
+  protected $args;
 
   /**
    * Name of the Ektu->method() that will be routed.
@@ -101,29 +101,40 @@ class Ektu {
    */
   protected $colour;
 
+  /**
+   * A cached form of the script's working __dir__. Used for relative paths.
+   *
+   * @var string
+   */
   public $dir;
 
+  /**
+   * The util module.
+   *
+   * @var object
+   */
   protected $util;
 
   /**
    * Construct magic method-- called on instantiation.
    *
-   * @param int $argc
-   *   Number of arguments.
-   * @param array $argv
-   *   Array of arguments.
+   * @param object $args
+   *   Commando arguments object.
    *
    * @private
    */
-  public function __construct($argc = 0, $argv = NULL, $dir = NULL) {
+  public function __construct($args = NULL, $dir = NULL) {
 
     // Define instantiated variables.
-    $this->argc = $argc;
-    $this->argv = $argv;
+    $this->args = $args;
     $this->dir  = $dir;
     $this->util = new Util($this);
 
-    $this->connectTo = isset($this->argv[2]) ? $argv[2] : 'default';
+    $this->args->option()->require()->describedAs('Command to run.');
+    $this->args->option()->describedAs('Instance to use (optional).');
+    $this->args->option('processes')->boolean();
+
+    $this->connectTo = $this->args[1] ? $this->args[1] : 'default';
 
     // Create a temporary file.
     file_put_contents("$this->dir/.tmp", "Nothing to see here...");
@@ -131,8 +142,8 @@ class Ektu {
     Log::logBlank();
 
     // Bypass usual operations if running setup- for now, at least.
-    if ($argv[1] == 'setup' || $argv[1] == 'doctor') {
-      $this->route($this->argv[1])->call();
+    if ($this->args[0] == 'setup' || $this->args[0] == 'doctor') {
+      $this->route($this->args[0])->call();
       return;
     }
 
@@ -146,12 +157,12 @@ class Ektu {
     // Load our personal settings.
     $this->config = Spyc::YAMLLoad(__DIR__ . "/../../config/config.yaml");
 
-    if (!isset($this->argv[1])) {
-      $this->argv[1] = NULL;
+    if (!isset($this->args[0])) {
+      $this->args[0] = NULL;
     }
 
     // Start routing.
-    $this->route($this->argv[1])->call();
+    $this->route($this->args[0])->call();
   }
 
   /**
@@ -202,6 +213,11 @@ class Ektu {
         'description'   => "Disconnect the file system. Warning: Close any IDEs first.",
         'instanceParam' => TRUE,
       ),
+      'rfs' => array(
+        'call'          => "reconnectFileSystem",
+        'description'   => "Reconnect the file system (dfs + cfs).",
+        'instanceParam' => TRUE,
+      ),
       'terminal' => array(
         'call'          => "createTerminal",
         'description'   => "Open a new shell/TTY on the Amazon EC2 box.",
@@ -209,6 +225,11 @@ class Ektu {
       ),
       'ip' => array(
         'call'          => "printPublicIP",
+        'description'   => "Print the current IP for the Amazon EC2 box.",
+        'instanceParam' => TRUE,
+      ),
+      'ip-clean' => array(
+        'call'          => "printPublicIPClean",
         'description'   => "Print the current IP for the Amazon EC2 box.",
         'instanceParam' => TRUE,
       ),
@@ -357,6 +378,17 @@ class Ektu {
   }
 
   /**
+   * Prints the clean public IP of an instance.
+   */
+  public function printPublicIPClean($iid = NULL) {
+    $ip = $this->getPublicIP($iid);
+    if (!$ip) {
+      return;
+    }
+    Log::logUnformatted($ip);
+  }
+
+  /**
    * Starts an instance.
    *
    * @todo Check the config for whether to CFS, DFS and such.
@@ -368,13 +400,24 @@ class Ektu {
 
     Log::logInfo("Connecting...");
 
-    $response = $this->ec2->startInstances(
-      array(
-        'InstanceIds' => array($iid),
-        'AdditionalInfo' => 'string',
-        'DryRun' => FALSE,
-      )
-    );
+    try {
+      $response = $this->ec2->startInstances(
+        array(
+          'InstanceIds' => array($iid),
+          'AdditionalInfo' => 'string',
+          'DryRun' => FALSE,
+        )
+      );
+    }
+    catch (\Aws\EC2\Exception\EC2Exception $e) {
+      Log::logError('Error ' . $e->getCode());
+      // Log::logPlain(implode("\n", explode("\n", wordwrap($e->getMessage(), 70))));
+      Log::logBlock($e->getMessage());
+      return FALSE;
+    }
+    catch (\Guzzle\Http\Exception\CurlException $e) {
+      return Log::logError('Error connecting to AWS servers. Please check your connection and try again.');
+    }
 
     $startInstanceWaiter = $this->ec2->getWaiter('InstanceRunning')
       ->setConfig(array('InstanceIds' => array($iid)))
@@ -456,6 +499,7 @@ class Ektu {
    *   Path to connect to SSHFS-- once again, if provided.
    *
    * @todo Create a waiter.
+   * @todo Allow remote path as a parameter.
    */
   protected function connectFileSystem($iid = NULL, $pemFile = NULL, $sshfsPath = NULL) {
 
@@ -480,10 +524,17 @@ class Ektu {
     }
     else {
       Log::logInfo('Connecting file system...', FALSE);
-      if ($this->getFileSystemStatus()) {
+      try {
+        if ($this->getFileSystemStatus()) {
+          Log::logBlank();
+          Log::logError("Mount point is not empty, this means you've probably already connected with SSHFS.");
+          return $this;
+        }
+      }
+      catch (\UnexpectedValueException $e) {
         Log::logBlank();
-        Log::logError("Mount point is not empty, this means you've probably already connected with SSHFS.");
-        return $this;
+        Log::logError('Error: Could not read from file system!');
+        return FALSE;
       }
       exec("sshfs -o $sshfsOptions $remoteUser@$ip:$remoteDir $sshfsPath 2>&1 &", $return_var);
       // do {
@@ -521,31 +572,45 @@ class Ektu {
 
     Log::logInfo('Disconnecting file system...', FALSE);
 
-    if (!$this->getFileSystemStatus()) {
+    try {
+
+      if (!$this->getFileSystemStatus()) {
+        Log::logBlank();
+        Log::logError('Filesystem is already disconnected.');
+        return $this;
+      }
+
+      $attempts = 0;
+
+      do {
+        $unmount = exec("$unmount_exec $sshfsPath 2>&1 &");
+        Log::logUnformatted('.', FALSE);
+        $attempts++;
+        sleep(1);
+      } while ($this->getFileSystemStatus());
+
       Log::logBlank();
-      Log::logError('Filesystem is already disconnected.');
-      return $this;
+
+      if ($attempts >= 10) {
+        Log::logError('Couldn\'t disconnect file system!');
+        return $this;
+      }
+
+      Log::logSuccess('Filesystem disconnected.');
+
     }
-
-    $attempts = 0;
-
-    do {
-      $unmount = exec("$unmount_exec $sshfsPath 2>&1 &");
-      Log::logUnformatted('.', FALSE);
-      $attempts++;
-      sleep(1);
-    } while ($this->getFileSystemStatus());
-
-    Log::logBlank();
-
-    if ($attempts >= 10) {
-      Log::logError('Couldn\'t disconnect file system!');
-      return $this;
+    catch (\UnexpectedValueException $e) {
+      Log::logBlank();
+      Log::logError('Error: Could not read from file system');
+      return FALSE;
     }
-
-    Log::logSuccess('Filesystem disconnected.');
 
     return $this;
+  }
+
+  protected function reconnectFileSystem() {
+    $this->disconnectFileSystem();
+    $this->connectFileSystem();
   }
 
   protected function printFileSystemStatus() {
@@ -715,8 +780,15 @@ class Ektu {
    */
   public function showInstances() {
 
+
     $instances = $this->getAllInstances();
     $configIIDs = $this->getConfigIIDs();
+
+    $instances_iterated = 0;
+
+    $check_processes = $this->args['processes'];
+
+    Log::logInfo('Please wait... [' . $instances_iterated . '/' . count($instances) . ']', false);
 
     $tbl = new Console_Table(
       CONSOLE_TABLE_ALIGN_LEFT,
@@ -725,7 +797,14 @@ class Ektu {
       'utf-8',
       FALSE
     );
-    $tbl->setHeaders(array('IID', 'Instance Name', 'Name in Config File', 'Status', 'MySQL', 'Apache'));
+
+    $header = array('IID', 'Instance Name', 'Name in Config File', 'IP', 'Status');
+
+    if ($check_processes) {
+      $header = array_merge($header, array('MySQL', 'Apache'));
+    }
+
+    $tbl->setHeaders($header);
     // $tbl->setBorder('');
     // $c = new Colour();
     foreach ($instances as $key => $instance) {
@@ -738,19 +817,21 @@ class Ektu {
         $inConfig = $configIIDs[$iid];
       }
 
-      $psaux = array();
+      if ($check_processes) {
+        $psaux = array();
 
-      if (!$this->checkKeyMatches($instance)) {
-        $psaux['mysqld'] = 'Denied';
-        $psaux['apache'] = 'Denied';
-      }
-      elseif ($instance['State']['Name'] !== 'running') {
-        $psaux['mysqld'] = 'N/A';
-        $psaux['apache'] = 'N/A';
-      }
-      else {
-        $psaux['mysqld'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{$this->getPublicIP($iid)} 'pgrep mysqld' 2>/dev/null") > 0) ? 'Running' : 'Inactive';
-        $psaux['apache'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{$this->getPublicIP($iid)} 'pgrep apache' 2>/dev/null") > 0) ? 'Running' : 'Inactive';
+        if (!$this->checkKeyMatches($instance)) {
+          $psaux['mysqld'] = 'Denied';
+          $psaux['apache'] = 'Denied';
+        }
+        elseif ($instance['State']['Name'] !== 'running') {
+          $psaux['mysqld'] = 'N/A';
+          $psaux['apache'] = 'N/A';
+        }
+        else {
+          $psaux['mysqld'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{$this->getPublicIP($iid)} 'pgrep mysqld' 2>/dev/null") > 0) ? 'Running' : 'Inactive';
+          $psaux['apache'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{$this->getPublicIP($iid)} 'pgrep apache' 2>/dev/null") > 0) ? 'Running' : 'Inactive';
+        }
       }
 
       $stateColour = 'green';
@@ -761,20 +842,26 @@ class Ektu {
         $stateColour = 'yellow';
       }
 
-      $tbl->addRow(array(
+      $rows = array(
         $iid,
         ($inConfig === 'default') ? $name : $name,
         $inConfig,
+        $this->getPublicIP($iid),
         ucwords($instance['State']['Name']),
-        $psaux['mysqld'],
-        $psaux['apache']
-      ));
+      );
+      if ($check_processes) {
+        $rows = array_merge($rows, array($psaux['mysqld'], $psaux['apache']));
+      }
+
+      $tbl->addRow($rows);
+
+
+      echo chr(27) . "[0G";
+      Log::logInfo('Please wait... [' . ++$instances_iterated . '/' . count($instances) . ']', false);
 
     }
 
-    // $tExplode = explode("\n", $tbl->getTable());
-    // $tExplode[3 + $defaultRow] = $c($tExplode[3 + $defaultRow])->bold()->yellow();
-    // Log::logPlain(trim(implode("\n", $tExplode)));
+    echo chr(27) . "[0G";
 
     Log::logPlain(trim($tbl->getTable()));
   }

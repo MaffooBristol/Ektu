@@ -21,9 +21,13 @@ class Log extends Util {
     if (stripos($message, "\n") !== FALSE) {
       $message = explode("\n", $message);
     }
+    elseif ($type === 'block') {
+      $message = explode("\n", wordwrap($message, 70));
+    }
     else {
       $message = array($message);
     }
+
 
     $newline = (!isset($opts['newline']) || $opts['newline'] ? "\n" : "");
 
@@ -48,6 +52,9 @@ class Log extends Util {
         case 'unformatted':
           print ($m);
           break;
+
+        case 'block':
+          print (" | " . $m . $newline);
 
         case 'blank':
           if (!isset($opts['rows']) || !is_int($opts['rows'])) {
@@ -114,6 +121,10 @@ class Log extends Util {
 
   static public function logUnformatted($message = '', $newline = TRUE) {
     return self::log($message, 'unformatted', array('newline' => $newline));
+  }
+
+  static public function logBlock($message = '', $newline = TRUE) {
+    return self::log($message, 'block', array('newline' => $newline));
   }
 
   static public function logFiglet($message = '', $newline = TRUE) {

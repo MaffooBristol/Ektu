@@ -17,5 +17,7 @@ if (!file_exists($autoload)) {
 // Require all dependencies.
 require_once $autoload;
 
+$args = new Commando\command();
+
 // Instantiate our Ektu class with our arguments.
-$ektu = new Ektu\Ektu($argc, $argv, __dir__);
+$ektu = new Ektu\Ektu($args, __dir__);

@@ -15,8 +15,9 @@
       "aws/aws-sdk-php": "2.*",
       "mustangostang/spyc": "*",
       "packaged/figlet": "*",
-      "kevinlebrun/colors.php": "0.*",
-      "pear/console_color2": "0.1.2"
+      "kevinlebrun/colors.php": "0.2.*",
+      "pear/console_color2": "0.1.2",
+      "nategood/commando": "*"
     },
   "autoload":
     {
