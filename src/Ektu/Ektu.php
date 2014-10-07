@@ -130,11 +130,11 @@ class Ektu {
     $this->dir  = $dir;
     $this->util = new Util($this);
 
-    $this->args->option()->require()->describedAs('Command to run.');
-    $this->args->option()->describedAs('Instance to use (optional).');
+    $this->args->option()->require()->describedAs('Command to run.')->default('usage');
+    $this->args->option()->describedAs('Instance to use (optional).')->default('default');
     $this->args->option('processes')->boolean();
 
-    $this->connectTo = $this->args[1] ? $this->args[1] : 'default';
+    $this->connectTo = $this->args[1];
 
     // Create a temporary file.
     file_put_contents("$this->dir/.tmp", "Nothing to see here...");
@@ -225,11 +225,13 @@ class Ektu {
       ),
       'ip' => array(
         'call'          => "printPublicIP",
+        'scope'         => '\Ektu\IP\IP',
         'description'   => "Print the current IP for the Amazon EC2 box.",
         'instanceParam' => TRUE,
       ),
       'ip-clean' => array(
         'call'          => "printPublicIPClean",
+        'scope'         => '\Ektu\IP\IP',
         'description'   => "Print the current IP for the Amazon EC2 box.",
         'instanceParam' => TRUE,
       ),
@@ -285,7 +287,7 @@ class Ektu {
       $this->commitSuicide("Unknown command '$route'. Please see 'ektu usage'.");
     }
 
-    $this->toCall = $items[$route]['call'];
+    $this->toCall = $items[$route];
     return $this;
   }
 
@@ -301,10 +303,21 @@ class Ektu {
       $this->commitSuicide("Nothing to call...");
     }
 
-    $method = array($this, $this->toCall);
+    if ($this->toCall['scope']) {
+      $scope = $this->toCall['scope'];
+      if (!class_exists($scope)) {
+        $this->commitSuicide("Can't find class by name " . $scope . '.');
+      }
+      $scope = (new \ReflectionClass($scope))->newInstanceArgs(array($this));
+    }
+    else {
+      $scope = $this;
+    }
+
+    $method = array($scope, $this->toCall['call']);
 
     if (!is_callable($method)) {
-      $this->commitSuicide("Can't call method " . $this->toCall . '.');
+      $this->commitSuicide("Can't call method " . $this->toCall['call'] . '.');
     }
 
     call_user_func($method);
@@ -320,7 +333,7 @@ class Ektu {
    * @return array
    *   An array of instance data.
    */
-  protected function getInstance($iid) {
+  public function getInstance($iid) {
 
     $iid = $this->getIID($iid);
 
@@ -353,39 +366,6 @@ class Ektu {
       $output[] = $res['Instances'][0];
     }
     return $output;
-  }
-
-  /**
-   * Gets the public IP of an instance.
-   */
-  protected function getPublicIP($iid = NULL) {
-
-    $iid = $this->getIID($iid);
-    $response = $this->getInstance($iid);
-
-    return $response['PublicIpAddress'];
-  }
-
-  /**
-   * Prints the public IP of an instance.
-   */
-  public function printPublicIP($iid = NULL) {
-    $ip = $this->getPublicIP($iid);
-    if (!$ip) {
-      return Log::logError('Could not get public IP');
-    }
-    Log::log("IP for $this->connectTo: $ip");
-  }
-
-  /**
-   * Prints the clean public IP of an instance.
-   */
-  public function printPublicIPClean($iid = NULL) {
-    $ip = $this->getPublicIP($iid);
-    if (!$ip) {
-      return;
-    }
-    Log::logUnformatted($ip);
   }
 
   /**
@@ -435,7 +415,7 @@ class Ektu {
     $startInstanceWaiter->wait();
 
     Log::logBlank();
-    Log::logSuccess("Your IP: " . $this->getPublicIP());
+    Log::logSuccess("Your IP: " . IP\IP\getPublicIP());
 
     // Wait for an arbitrary period of time before connecting the file
     // system. This ensures that SSH is ready for inbound connections on
@@ -503,7 +483,7 @@ class Ektu {
    */
   protected function connectFileSystem($iid = NULL, $pemFile = NULL, $sshfsPath = NULL) {
 
-    $ip         = $this->getPublicIP($iid);
+    $ip         = IP\IP\getPublicIP($iid);
     $pemFile    = $this->getPemFile($pemFile);
     $sshfsPath  = $this->getSSHFSPath($sshfsPath);
     $remoteUser = $this->getRemoteUser();
@@ -629,7 +609,7 @@ class Ektu {
 
   protected function createTerminal($iid = NULL, $pemFile = NULL) {
 
-    $ip      = $this->getPublicIP($iid);
+    $ip      = \Ektu\IP\IP\getPublicIP($iid);
     $pemFile = $this->getPemFile($pemFile);
 
     Log::log("Connecting to $ip...");
@@ -663,7 +643,7 @@ class Ektu {
     }
   }
 
-  protected function getIID($iid = NULL) {
+  public function getIID($iid = NULL) {
     // Use the IID that comes in as a parameter, if available.
     if (isset($iid)) {
       return $iid;
@@ -829,8 +809,8 @@ class Ektu {
           $psaux['apache'] = 'N/A';
         }
         else {
-          $psaux['mysqld'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{$this->getPublicIP($iid)} 'pgrep mysqld' 2>/dev/null") > 0) ? 'Running' : 'Inactive';
-          $psaux['apache'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{$this->getPublicIP($iid)} 'pgrep apache' 2>/dev/null") > 0) ? 'Running' : 'Inactive';
+          $psaux['mysqld'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{IP\IP\getPublicIP($iid)} 'pgrep mysqld' 2>/dev/null") > 0) ? 'Running' : 'Inactive';
+          $psaux['apache'] = (exec("ssh -i {$this->getPemFile()} -o StrictHostKeyChecking=no ubuntu@{IP\IP\getPublicIP($iid)} 'pgrep apache' 2>/dev/null") > 0) ? 'Running' : 'Inactive';
         }
       }
 
@@ -846,7 +826,7 @@ class Ektu {
         $iid,
         ($inConfig === 'default') ? $name : $name,
         $inConfig,
-        $this->getPublicIP($iid),
+        IP\IP\getPublicIP($iid),
         ucwords($instance['State']['Name']),
       );
       if ($check_processes) {
@@ -913,6 +893,10 @@ class Ektu {
 
   protected function commitSuicide($message = 'Undefined.') {
     exit(Log::logError('Fatal error: ' . $message));
+  }
+
+  public function getConnectTo() {
+    return $this->connectTo;
   }
 
 }
